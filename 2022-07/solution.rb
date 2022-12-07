@@ -7,76 +7,47 @@ DIR = /^dir\s([a-z]+)$/.freeze
 file = File.open('input.txt')
 lines = file.read.split("\n")
 
-def directory_keys(current_path)
-  current_path.split('/')[1..]
-end
-
-def directory_size(file_system, current_path)
-  if directory_keys(current_path).nil?
-    file_system[:_size]
-  else
-    file_system.dig(*directory_keys(current_path))[:_size]
-  end
-end
-
-def build_file_system(lines, current_path = '')
-  file_system = { _size: 0 }
+def build_directories(lines, current_path = ['/'])
+  directories = { '/' => 0 }
 
   lines.each do |line|
     case line
     when '$ cd /'
       # root dir
-      current_path = ''
+      current_path = ['/']
     when '$ cd ..'
       # up dir
-      current_path = current_path.split('/')[0..-2].join('/')
+      current_path = current_path[0..-2]
     when DOWN_DIR
       # down dir
-      current_path += "/#{line.match(DOWN_DIR)[1]}"
+      current_path << line.match(DOWN_DIR)[1]
     when FILE
-      # file
-      dir_size = directory_size(file_system, current_path) + line.match(FILE)[1].to_i
-      if directory_keys(current_path).nil?
-        file_system.merge!({ _size: dir_size })
-      else
-        file_system.dig(*directory_keys(current_path)).merge!({ _size: dir_size })
-      end
-    when DIR
-      # dir
-      if directory_keys(current_path).nil?
-        file_system.merge!({ (line.match(DIR)[1]).to_s => { _size: 0 } })
-      else
-        file_system.dig(*directory_keys(current_path)).merge!({ (line.match(DIR)[1]).to_s => { _size: 0 } })
+      current_path.each_with_index do |_dir, index|
+        directories[current_path[0..index].join('/')] ||= 0
+        directories[current_path[0..index].join('/')] += line.match(FILE)[1].to_i
       end
     end
   end
 
-  file_system
+  directories
 end
 
-def incorporate_subdir_sizes(file_system)
-  file_system.each do |key, value|
-    next if key == :_size
+directories = build_directories(lines)
 
-    file_system[:_size] += incorporate_subdir_sizes(value)
-  end
+total = 0
 
-  file_system[:_size]
+directories.each do |_key, value|
+  total += value unless value > 100_000
+end
+puts total
+
+directories = directories.values.sort
+
+used_space = (70_000_000 - directories.last)
+required_space = (30_000_000 - used_space)
+
+directory_size_to_delete = directories.find do |val|
+  val > required_space
 end
 
-def calc_total(file_system)
-  total = file_system[:_size]
-  total = 0 if file_system[:_size] > 100_000
-
-  file_system.each do |key, val|
-    next if key == :_size
-
-    total += calc_total(val)
-  end
-
-  total
-end
-
-puts file_system = build_file_system(lines)
-incorporate_subdir_sizes(file_system)
-puts calc_total(file_system)
+puts directory_size_to_delete
